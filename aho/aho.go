@@ -1,5 +1,9 @@
 package aho
 
+import (
+	"unicode/utf8"
+)
+
 func check(fall *TrieNode, trieNode *TrieNode, char rune) bool {
 	checkNode := fall.getChild(char)
 	if checkNode != nil && fall != trieNode {
@@ -51,11 +55,16 @@ func findPhrase(trieNode *TrieNode) string {
 	return string(reverse(tmp))
 }
 
-func search(str string, trieNode *TrieNode) []string {
-	var results []string
+type Result struct {
+	Index int    `json:"index"`
+	Text  string `json:"text"`
+}
+
+func search(str string, trieNode *TrieNode) []Result {
+	var results []Result
 	chars := []rune(str)
 	currentState := trieNode
-	for _, char := range chars {
+	for i, char := range chars {
 		node := currentState
 		for node.char != 0 && node.getChild(char) == nil {
 			node = node.fall
@@ -68,8 +77,8 @@ func search(str string, trieNode *TrieNode) []string {
 		for currentNode.char != 0 {
 			if currentNode.isEnd == true {
 				phrase := findPhrase(currentNode)
-				results = append(results, phrase)
-
+				index := 1 + i - utf8.RuneCountInString(phrase)
+				results = append(results, Result{index, phrase})
 			}
 			currentNode = currentNode.fall
 		}
@@ -78,14 +87,28 @@ func search(str string, trieNode *TrieNode) []string {
 	return results
 }
 
-func Athingy(lines []string) func(message string) []string {
-	trieNode := &TrieNode{}
-	trieNode.childNodes = make(map[rune]*TrieNode)
-	for _, line := range lines {
-		trieNode = trieNode.addString(line)
+type aho struct {
+	trieNode *TrieNode
+}
+
+func NewSearch(phrases []string) aho {
+	a := aho{}
+	a.trieNode = &TrieNode{}
+	a.trieNode.childNodes = make(map[rune]*TrieNode)
+	for _, phrase := range phrases {
+		a.trieNode.addString(phrase)
 	}
-	trieNode = build(trieNode)
-	return func(message string) []string {
-		return search(message, trieNode)
-	}
+	return a
+}
+
+func (a aho) Add(phrase string) {
+	a.trieNode.addString(phrase)
+}
+
+func (a aho) Build() {
+	a.trieNode = build(a.trieNode)
+}
+
+func (a aho) Exec(phrase string) []Result {
+	return search(phrase, a.trieNode)
 }
